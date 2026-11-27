@@ -111,16 +111,16 @@
             <span id="sync-status-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
             <span id="sync-status-text">Đang kết nối cloud...</span>
             <span class="text-slate-300 dark:text-slate-700">|</span>
-            <span class="text-slate-400 dark:text-slate-500">Mã:</span>
-            <span id="sync-code-display" class="font-mono font-semibold text-indigo-600 dark:text-indigo-400">------</span>
-            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
-          </button>
-        </div>
+          <span class="text-slate-400 dark:text-slate-500">Mã:</span>
+          <span id="sync-code-display" class="font-mono font-semibold text-indigo-600 dark:text-indigo-400">------</span>
+          <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+        </button>
       </div>
+    </div>
 
-      <!-- Cụm nút chế độ thông báo 3 trạng thái & thanh trượt Sáng/Tối kiểu Apple -->
+    <!-- Cụm nút chế độ thông báo 3 trạng thái & thanh trượt Sáng/Tối kiểu Apple -->
       <div class="flex items-center gap-2.5 shrink-0">
         <!-- Nút chuông 3 chế độ: Chuông + Rung -> Chỉ rung -> Im lặng -->
         <button
@@ -444,17 +444,17 @@
     </div>
   </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
+  <script>
     /**
      * ỨNG DỤNG TO-DO LIST TỐI NAY (ĐỒNG BỘ ĐÁM MÂY THỜI GIAN THỰC)
      * Hỗ trợ đồng bộ tức thì giữa Laptop & Điện thoại thông qua Mã đồng bộ (Sync Code)
+     * Chạy trực tiếp trên GitHub Pages mà không cần cấu hình server riêng
      */
 
     const DEFAULT_APP_TITLE = 'Việc cần làm tối nay';
+    const CLOUD_SYNC_ENDPOINT = 'https://ntfy.sh';
+    const CLOUD_TOPIC_PREFIX = 'vbcd-tonight-todo-sync-v1-';
+    const LOCAL_SYNC_CODE_KEY = 'vbcd_tonight_sync_code';
 
     // Danh sách 3 chế độ thông báo xoay vòng
     const NOTIFY_MODES = ['ring_vibrate', 'vibrate', 'silent'];
@@ -486,14 +486,14 @@
     let resetConfirmTimer = null;
     let wasAllCompleted = false;
 
-    // Biến phục vụ Cloud Sync
-    let db = null;
-    let auth = null;
-    let currentUser = null;
-    let unsubscribeRoom = null;
+    // Biến phục vụ Cloud Sync (chạy trực tiếp trên GitHub Pages & mọi trình duyệt)
     let syncCode = '';
     let isApplyingRemoteUpdate = false;
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    let syncEventSource = null;
+    let syncPollTimer = null;
+    let lastSyncedPayloadHash = '';
+    let localUpdatedAt = 0;
+    const deviceClientId = 'dev-' + Math.random().toString(36).slice(2, 10);
 
     // Tham chiếu các phần tử DOM
     const htmlEl = document.documentElement;
@@ -567,7 +567,40 @@
         const fromUrl = normalizeSyncCode(params.get('sync') || params.get('code'));
         if (fromUrl.length >= 4) return fromUrl;
       } catch (e) {}
+      try {
+        const saved = normalizeSyncCode(localStorage.getItem(LOCAL_SYNC_CODE_KEY));
+        if (saved.length >= 4) return saved;
+      } catch (e) {}
       return generateRandomCode();
+    }
+
+    function getLocalStorageKey(code) {
+      return `vbcd_tonight_data_${code}`;
+    }
+
+    function saveLocalBackup() {
+      if (!syncCode) return;
+      try {
+        localStorage.setItem(LOCAL_SYNC_CODE_KEY, syncCode);
+        localStorage.setItem(
+          getLocalStorageKey(syncCode),
+          JSON.stringify({
+            appTitle: (appTitleEl.textContent || DEFAULT_APP_TITLE).trim(),
+            todos: todos,
+            updatedAt: localUpdatedAt,
+          })
+        );
+      } catch (e) {}
+    }
+
+    function loadLocalBackup(code) {
+      try {
+        const raw = localStorage.getItem(getLocalStorageKey(code));
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch (e) {
+        return null;
+      }
     }
 
     function updateSyncStatusUI(state, codeText) {
@@ -583,7 +616,7 @@
         syncStatusText.textContent = 'Đang đồng bộ...';
       } else {
         syncStatusDot.classList.add('bg-rose-500');
-        syncStatusText.textContent = 'Chế độ ngoại tuyến';
+        syncStatusText.textContent = 'Mất kết nối mạng';
       }
     }
 
@@ -595,110 +628,194 @@
       } catch (e) {}
     }
 
-    async function pushStateToCloud() {
-      if (!db || !currentUser || !syncCode || isApplyingRemoteUpdate) return;
+    function getCloudTopicUrl(code) {
+      return `${CLOUD_SYNC_ENDPOINT}/${CLOUD_TOPIC_PREFIX}${encodeURIComponent(code.toLowerCase())}`;
+    }
+
+    function applyRemoteState(data) {
+      if (!data || typeof data !== 'object') return;
+      if (data.updatedBy === deviceClientId) return;
+      if (typeof data.updatedAt === 'number' && data.updatedAt <= localUpdatedAt) return;
+
+      const nextHash = JSON.stringify({ t: data.appTitle, list: data.todos });
+      if (nextHash === lastSyncedPayloadHash) return;
+
+      isApplyingRemoteUpdate = true;
       try {
-        const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'tonight_todo_rooms', syncCode);
-        await setDoc(
-          roomRef,
-          {
-            appTitle: (appTitleEl.textContent || DEFAULT_APP_TITLE).trim(),
-            todos: todos,
-            updatedAt: Date.now(),
-            updatedBy: currentUser.uid,
+        if (typeof data.updatedAt === 'number') {
+          localUpdatedAt = data.updatedAt;
+        }
+        if (typeof data.appTitle === 'string' && data.appTitle.trim()) {
+          const remoteTitle = data.appTitle.trim();
+          if (document.activeElement !== appTitleEl && appTitleEl.textContent.trim() !== remoteTitle) {
+            appTitleEl.textContent = remoteTitle;
+            document.title = remoteTitle;
+          }
+        }
+        if (Array.isArray(data.todos)) {
+          todos = data.todos.map((item) => ({
+            ...item,
+            title: item.title !== undefined ? item.title : (item.text || ''),
+            description: item.description !== undefined ? item.description : '',
+          }));
+          wasAllCompleted = todos.length > 0 && todos.every((t) => t.completed);
+          renderTodos();
+        }
+        lastSyncedPayloadHash = nextHash;
+        saveLocalBackup();
+      } finally {
+        isApplyingRemoteUpdate = false;
+      }
+    }
+
+    async function pushStateToCloud(force = false) {
+      if (!syncCode || isApplyingRemoteUpdate) return;
+      if (!force) {
+        localUpdatedAt = Date.now();
+      }
+      saveLocalBackup();
+
+      const payload = {
+        appTitle: (appTitleEl.textContent || DEFAULT_APP_TITLE).trim(),
+        todos: todos,
+        updatedAt: localUpdatedAt,
+        updatedBy: deviceClientId,
+      };
+      lastSyncedPayloadHash = JSON.stringify({ t: payload.appTitle, list: payload.todos });
+
+      try {
+        const res = await fetch(getCloudTopicUrl(syncCode), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Title': 'TodoSync',
           },
-          { merge: true }
-        );
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          updateSyncStatusUI('connected', syncCode);
+        } else {
+          updateSyncStatusUI('offline', syncCode);
+        }
       } catch (err) {
         console.error('Lỗi đẩy dữ liệu lên Cloud:', err);
         updateSyncStatusUI('offline', syncCode);
       }
     }
 
-    function subscribeToSyncRoom(code) {
-      if (!db || !currentUser || !code) return;
-      if (unsubscribeRoom) {
-        unsubscribeRoom();
-        unsubscribeRoom = null;
+    async function fetchLatestFromCloud(code) {
+      try {
+        const res = await fetch(`${getCloudTopicUrl(code)}/json?poll=1&since=all`, {
+          cache: 'no-store',
+        });
+        if (!res.ok) return false;
+        const text = await res.text();
+        updateSyncStatusUI('connected', code);
+        const lines = text.trim().split('\n').filter(Boolean);
+        let latestPayload = null;
+        for (const line of lines) {
+          try {
+            const eventObj = JSON.parse(line);
+            if (eventObj && eventObj.event === 'message' && typeof eventObj.message === 'string') {
+              const parsed = JSON.parse(eventObj.message);
+              if (parsed && Array.isArray(parsed.todos)) {
+                if (!latestPayload || (parsed.updatedAt || 0) >= (latestPayload.updatedAt || 0)) {
+                  latestPayload = parsed;
+                }
+              }
+            }
+          } catch (e) {}
+        }
+        if (latestPayload) {
+          applyRemoteState(latestPayload);
+          return true;
+        }
+        return false;
+      } catch (err) {
+        updateSyncStatusUI('offline', code);
+        return false;
+      }
+    }
+
+    async function subscribeToSyncRoom(code, isManualJoin = false) {
+      if (!code) return;
+      if (syncEventSource) {
+        syncEventSource.close();
+        syncEventSource = null;
+      }
+      if (syncPollTimer) {
+        clearInterval(syncPollTimer);
+        syncPollTimer = null;
       }
 
       syncCode = code;
       updateUrlWithSyncCode(syncCode);
       updateSyncStatusUI('connecting', syncCode);
 
-      const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'tonight_todo_rooms', syncCode);
-      unsubscribeRoom = onSnapshot(
-        roomRef,
-        (snapshot) => {
-          updateSyncStatusUI('connected', syncCode);
-          if (!snapshot.exists()) {
-            // Phòng mới chưa có trên Cloud: đẩy dữ liệu hiện tại lên để khởi tạo
-            pushStateToCloud();
-            return;
+      // Khôi phục bản lưu cục bộ của mã này nếu có
+      const backup = loadLocalBackup(syncCode);
+      if (backup && Array.isArray(backup.todos)) {
+        isApplyingRemoteUpdate = true;
+        try {
+          localUpdatedAt = backup.updatedAt || 0;
+          if (backup.appTitle) {
+            appTitleEl.textContent = backup.appTitle;
+            document.title = backup.appTitle;
           }
-
-          const data = snapshot.data();
-          isApplyingRemoteUpdate = true;
-          try {
-            if (typeof data.appTitle === 'string' && data.appTitle.trim()) {
-              const remoteTitle = data.appTitle.trim();
-              if (document.activeElement !== appTitleEl && appTitleEl.textContent.trim() !== remoteTitle) {
-                appTitleEl.textContent = remoteTitle;
-                document.title = remoteTitle;
-              }
-            }
-
-            if (Array.isArray(data.todos)) {
-              todos = data.todos.map((item) => ({
-                ...item,
-                title: item.title !== undefined ? item.title : (item.text || ''),
-                description: item.description !== undefined ? item.description : '',
-              }));
-              wasAllCompleted = todos.length > 0 && todos.every((t) => t.completed);
-              renderTodos();
-            }
-          } finally {
-            isApplyingRemoteUpdate = false;
-          }
-        },
-        (error) => {
-          console.error('Lỗi lắng nghe đồng bộ Cloud:', error);
-          updateSyncStatusUI('offline', syncCode);
+          todos = backup.todos;
+          wasAllCompleted = todos.length > 0 && todos.every((t) => t.completed);
+          renderTodos();
+        } finally {
+          isApplyingRemoteUpdate = false;
         }
-      );
+      } else if (isManualJoin) {
+        // Khi người dùng nhập mã mới để tham gia phòng từ máy khác, ưu tiên tải dữ liệu từ Cloud về trước
+        localUpdatedAt = 0;
+      }
+
+      saveLocalBackup();
+
+      // Kéo dữ liệu mới nhất hiện có trên Cloud về
+      const foundRemote = await fetchLatestFromCloud(syncCode);
+      if (!foundRemote && todos.length > 0) {
+        // Phòng mới hoàn toàn chưa có dữ liệu trên Cloud -> đẩy dữ liệu hiện tại lên làm mốc khởi tạo
+        await pushStateToCloud(false);
+      }
+
+      // Lắng nghe thay đổi thời gian thực qua Server-Sent Events (SSE)
+      try {
+        syncEventSource = new EventSource(`${getCloudTopicUrl(syncCode)}/sse`);
+        syncEventSource.onopen = () => {
+          updateSyncStatusUI('connected', syncCode);
+        };
+        syncEventSource.onmessage = (event) => {
+          updateSyncStatusUI('connected', syncCode);
+          try {
+            const eventObj = JSON.parse(event.data);
+            if (eventObj && typeof eventObj.message === 'string') {
+              const parsed = JSON.parse(eventObj.message);
+              applyRemoteState(parsed);
+            }
+          } catch (e) {}
+        };
+        syncEventSource.onerror = () => {
+          updateSyncStatusUI('connecting', syncCode);
+        };
+      } catch (e) {
+        console.warn('SSE fallback sang polling:', e);
+      }
+
+      // Dự phòng đồng bộ định kỳ mỗi 8 giây nếu kết nối SSE trên điện thoại bị ngắt khi khóa màn hình
+      syncPollTimer = setInterval(() => {
+        if (!document.hidden) {
+          fetchLatestFromCloud(syncCode);
+        }
+      }, 8000);
     }
 
-    async function initCloudSync() {
+    function initCloudSync() {
       syncCode = getInitialSyncCode();
-      updateSyncStatusUI('connecting', syncCode);
-
-      try {
-        if (typeof __firebase_config === 'undefined') {
-          updateSyncStatusUI('offline', syncCode);
-          return;
-        }
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
-
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-
-        currentUser = auth.currentUser;
-        if (!currentUser) {
-          updateSyncStatusUI('offline', syncCode);
-          return;
-        }
-
-        subscribeToSyncRoom(syncCode);
-      } catch (err) {
-        console.error('Không thể khởi tạo Cloud Sync:', err);
-        updateSyncStatusUI('offline', syncCode);
-      }
+      subscribeToSyncRoom(syncCode, false);
     }
 
     // Xử lý mở/đóng & thao tác trong Modal Sync Code
@@ -745,14 +862,8 @@
         return;
       }
       closeSyncModal();
-      if (currentUser && db) {
-        subscribeToSyncRoom(nextCode);
-        showToast(`Đang đồng bộ theo mã "${nextCode}"`);
-      } else {
-        syncCode = nextCode;
-        updateUrlWithSyncCode(syncCode);
-        updateSyncStatusUI('offline', syncCode);
-      }
+      subscribeToSyncRoom(nextCode, true);
+      showToast(`Đang đồng bộ theo mã "${nextCode}"`);
     });
 
     syncCodeInput.addEventListener('keydown', (e) => {

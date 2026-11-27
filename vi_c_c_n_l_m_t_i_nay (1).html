@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Việc cần làm tối nay</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Tone.js cho âm thanh chuông báo nhẹ nhàng -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          keyframes: {
+            celebrateBounce: {
+              '0%, 100%': { transform: 'translateY(0) scale(1) rotate(0deg)' },
+              '25%': { transform: 'translateY(-4px) scale(1.12) rotate(-6deg)' },
+              '50%': { transform: 'translateY(0) scale(1.05) rotate(6deg)' },
+              '75%': { transform: 'translateY(-2px) scale(1.08) rotate(-3deg)' },
+            },
+            floatSparkle: {
+              '0%, 100%': { opacity: '0.35', transform: 'scale(0.85)' },
+              '50%': { opacity: '1', transform: 'scale(1.15)' },
+            },
+            subtleVibrate: {
+              '0%, 100%': { transform: 'translateX(0)' },
+              '25%': { transform: 'translateX(-1.5px) rotate(-3deg)' },
+              '75%': { transform: 'translateX(1.5px) rotate(3deg)' },
+            }
+          },
+          animation: {
+            'celebrate-bounce': 'celebrateBounce 1.6s ease-in-out infinite',
+            'float-sparkle': 'floatSparkle 2s ease-in-out infinite',
+            'subtle-vibrate': 'subtleVibrate 0.35s ease-in-out 2',
+          }
+        },
+      },
+    };
+  </script>
+</head>
+<body class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased selection:bg-indigo-500/20 selection:text-indigo-500">
+  <!-- Banner thông báo nổi (thay thế hoàn toàn alert/confirm) -->
+  <div
+    id="toast-banner"
+    role="status"
+    aria-live="polite"
+    class="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md hidden transition-all duration-300"
+  >
+    <div class="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-indigo-600 text-white shadow-xl shadow-indigo-950/30 border border-indigo-400/30">
+      <p id="toast-message" class="text-sm font-medium leading-snug"></p>
+      <button
+        id="toast-close"
+        type="button"
+        aria-label="Đóng thông báo"
+        class="p-1 rounded-lg hover:bg-white/15 active:scale-95 transition shrink-0"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Khung chính tối ưu cho cả mobile và desktop -->
+  <div class="max-w-xl mx-auto px-4 py-6 sm:py-10">
+    <!-- Header: Tiêu đề chỉnh sửa được, ngày/giờ & cụm điều khiển -->
+    <header class="flex items-start justify-between gap-3 mb-5">
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-1.5 group">
+          <h1
+            id="app-title"
+            contenteditable="true"
+            spellcheck="false"
+            title="Bấm để đổi tiêu đề danh sách"
+            class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white rounded-xl px-1.5 -mx-1.5 py-0.5 border border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 transition cursor-text truncate"
+          >
+            Việc cần làm tối nay
+          </h1>
+          <span
+            title="Chỉnh sửa tiêu đề"
+            class="text-slate-400 dark:text-slate-500 opacity-70 group-hover:opacity-100 transition shrink-0 pointer-events-none"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </span>
+        </div>
+        <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 flex items-center flex-wrap gap-x-2 gap-y-0.5">
+          <span id="current-date">Đang tải ngày...</span>
+          <span aria-hidden="true">•</span>
+          <span id="live-clock" class="font-mono font-medium text-indigo-600 dark:text-indigo-400">--:--:--</span>
+        </p>
+        <!-- Thanh trạng thái & Mã đồng bộ đám mây giữa Laptop và Điện thoại -->
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <button
+            id="sync-code-btn"
+            type="button"
+            title="Bấm để đổi hoặc chia sẻ Mã đồng bộ giữa Laptop và Điện thoại"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-indigo-400 dark:hover:border-indigo-500 transition shadow-sm active:scale-95"
+          >
+            <span id="sync-status-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            <span id="sync-status-text">Đang kết nối cloud...</span>
+            <span class="text-slate-300 dark:text-slate-700">|</span>
+            <span class="text-slate-400 dark:text-slate-500">Mã:</span>
+            <span id="sync-code-display" class="font-mono font-semibold text-indigo-600 dark:text-indigo-400">------</span>
+            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Cụm nút chế độ thông báo 3 trạng thái & thanh trượt Sáng/Tối kiểu Apple -->
+      <div class="flex items-center gap-2.5 shrink-0">
+        <!-- Nút chuông 3 chế độ: Chuông + Rung -> Chỉ rung -> Im lặng -->
+        <button
+          id="notify-btn"
+          type="button"
+          title="Chế độ nhắc: Chuông + Rung (Bấm để đổi)"
+          aria-label="Chuyển chế độ nhắc nhở"
+          class="h-10 px-3 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-indigo-400 dark:hover:border-indigo-500 transition-all duration-200 shadow-sm active:scale-95 flex items-center gap-1.5"
+        >
+          <!-- State 1: Chuông + Rung -->
+          <span id="notify-icon-ring_vibrate" class="flex items-center text-indigo-600 dark:text-indigo-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0M3.124 7.5A8.969 8.969 0 015.292 3m13.416 0a8.969 8.969 0 012.168 4.5" />
+            </svg>
+          </span>
+
+          <!-- State 2: Chỉ rung -->
+          <span id="notify-icon-vibrate" class="hidden items-center text-amber-600 dark:text-amber-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <rect x="7" y="4" width="10" height="16" rx="2" stroke-linecap="round" stroke-linejoin="round" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.5 8.5v7M20.5 8.5v7M11 17h2" />
+            </svg>
+          </span>
+
+          <!-- State 3: Im lặng (Không noti) -->
+          <span id="notify-icon-silent" class="hidden items-center text-slate-400 dark:text-slate-500">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.143 17.082a24.248 24.248 0 003.844.148m-3.844-.148a23.856 23.856 0 01-5.455-1.31 8.964 8.964 0 002.3-5.542m3.155 6.852a3 3 0 005.667 1.97m1.965-2.277L21 21m-4.225-4.225a23.81 23.81 0 003.536-1.003A8.967 8.967 0 0118 9.75V9A6 6 0 006.53 6.53m10.245 10.245L6.53 6.53M3 3l3.53 3.53" />
+            </svg>
+          </span>
+
+          <span id="notify-mode-label" class="text-xs font-semibold tracking-tight whitespace-nowrap">
+            Chuông + Rung
+          </span>
+        </button>
+
+        <!-- Thanh trượt Sáng / Tối bo tròn kiểu Apple iOS/macOS -->
+        <button
+          id="theme-btn"
+          type="button"
+          role="switch"
+          aria-checked="true"
+          title="Chuyển giao diện Sáng / Tối"
+          aria-label="Chuyển giao diện Sáng hoặc Tối"
+          class="relative inline-flex items-center w-[68px] h-10 p-1 rounded-full bg-amber-200/90 dark:bg-slate-800 border border-amber-300/80 dark:border-slate-700/90 shadow-inner transition-colors duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-indigo-500/50 active:scale-95"
+        >
+          <!-- Icon nền Mặt trời (bên trái) & Mặt trăng (bên phải) -->
+          <span class="w-full flex items-center justify-between px-1.5 pointer-events-none">
+            <svg class="w-3.5 h-3.5 text-amber-600 dark:text-slate-500 transition-colors duration-300" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd" />
+            </svg>
+            <svg class="w-3.5 h-3.5 text-amber-700/40 dark:text-indigo-300 transition-colors duration-300" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+            </svg>
+          </span>
+
+          <!-- Núm tròn trượt mượt kiểu lò xo Apple -->
+          <span
+            id="theme-knob"
+            class="absolute left-1 top-1 w-8 h-8 rounded-full bg-white dark:bg-indigo-500 shadow-md flex items-center justify-center transform translate-x-7 dark:translate-x-7 transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+          >
+            <svg id="sun-icon" class="w-4 h-4 text-amber-500 hidden" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            <svg id="moon-icon" class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+            </svg>
+          </span>
+        </button>
+      </div>
+    </header>
+    <!-- Thẻ Tiến độ hoàn thành tối nay (Có trạng thái ăn mừng khi hoàn thành 100%) -->
+    <section
+      id="progress-card"
+      class="relative overflow-hidden bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm mb-5 transition-all duration-500"
+    >
+      <!-- Các hạt lấp lánh trang trí khi hoàn thành 100% -->
+      <div id="celebration-sparkles" class="hidden pointer-events-none select-none">
+        <span class="absolute top-2.5 right-14 text-xs animate-float-sparkle">✨</span>
+        <span class="absolute bottom-2 right-6 text-xs animate-float-sparkle" style="animation-delay: 0.4s">🌟</span>
+        <span class="absolute top-2 left-1/2 text-[11px] animate-float-sparkle" style="animation-delay: 0.8s">🎊</span>
+      </div>
+
+      <div class="relative flex items-center justify-between gap-2 text-sm mb-2.5">
+        <div class="flex items-center gap-2">
+          <!-- Icon mặt cười chúc mừng hiện ra khi hoàn thành hết task -->
+          <span
+            id="celebrate-smiley"
+            class="hidden items-center justify-center w-8 h-8 rounded-2xl bg-gradient-to-br from-amber-300 via-yellow-400 to-emerald-400 text-slate-900 shadow-sm animate-celebrate-bounce shrink-0"
+            title="Hoàn thành xuất sắc!"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.5 14.2c.9 1.4 2.1 2.1 3.5 2.1s2.6-.7 3.5-2.1" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.5 9.8l1-1 1 1M13.5 9.8l1-1 1 1" />
+            </svg>
+          </span>
+          <div>
+            <span id="progress-label" class="font-semibold text-slate-700 dark:text-slate-200 block">Tiến độ tối nay</span>
+            <span id="celebrate-subtitle" class="hidden text-xs font-medium text-emerald-600 dark:text-emerald-300">
+              Tuyệt vời! Bạn đã hoàn thành hết việc tối nay 🎉
+            </span>
+          </div>
+        </div>
+
+        <span
+          id="progress-text"
+          class="font-semibold text-indigo-600 dark:text-indigo-400 px-2.5 py-1 rounded-full bg-indigo-50/80 dark:bg-indigo-950/70 text-xs sm:text-sm transition-colors duration-300 shrink-0"
+        >
+          Đã xong 0/0 việc
+        </span>
+      </div>
+
+      <div class="relative w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+        <div
+          id="progress-bar"
+          class="h-full bg-indigo-500 rounded-full transition-all duration-500 ease-out"
+          style="width: 0%"
+        ></div>
+      </div>
+    </section>
+
+    <!-- Form thêm công việc mới -->
+    <section class="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm mb-6">
+      <form id="todo-form" class="space-y-3">
+        <div>
+          <label for="todo-input" class="sr-only">Tiêu đề công việc</label>
+          <input
+            id="todo-input"
+            type="text"
+            placeholder="Tiêu đề công việc (VD: Viết script YouTube...)"
+            autocomplete="off"
+            class="w-full px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-base font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+          />
+        </div>
+
+        <div>
+          <label for="todo-desc-input" class="sr-only">Mô tả hoặc ghi chú chi tiết</label>
+          <textarea
+            id="todo-desc-input"
+            rows="2"
+            placeholder="Mô tả / Ghi chú chi tiết (tùy chọn, nhấn Ctrl+Enter để thêm nhanh)..."
+            class="w-full px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-300 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition resize-none"
+          ></textarea>
+        </div>
+
+        <!-- Chọn giờ nhanh buổi tối + Input giờ tùy chỉnh + Nút Thêm -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-xs text-slate-400 dark:text-slate-500 mr-0.5">Giờ nhắc:</span>
+            <button type="button" data-preset="19:30" class="preset-time-btn px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 dark:hover:bg-indigo-950 hover:text-indigo-600 dark:hover:text-indigo-300 transition">
+              19:30
+            </button>
+            <button type="button" data-preset="20:30" class="preset-time-btn px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 dark:hover:bg-indigo-950 hover:text-indigo-600 dark:hover:text-indigo-300 transition">
+              20:30
+            </button>
+            <button type="button" data-preset="21:30" class="preset-time-btn px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 dark:hover:bg-indigo-950 hover:text-indigo-600 dark:hover:text-indigo-300 transition">
+              21:30
+            </button>
+            <button type="button" data-preset="22:30" class="preset-time-btn px-2.5 py-1.5 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-100 dark:hover:bg-indigo-950 hover:text-indigo-600 dark:hover:text-indigo-300 transition">
+              22:30
+            </button>
+            <input
+              id="todo-time"
+              type="time"
+              aria-label="Chọn giờ nhắc tùy ý"
+              class="px-2.5 py-1 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          <button
+            type="submit"
+            class="w-full sm:w-auto px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-semibold text-sm shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-1.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Thêm việc</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Thanh Bộ lọc nhanh -->
+    <div class="flex items-center justify-between gap-2 mb-4">
+      <div class="inline-flex p-1 rounded-2xl bg-slate-200/70 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+        <button type="button" data-filter="all" class="filter-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm transition">
+          Tất cả
+        </button>
+        <button type="button" data-filter="active" class="filter-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition">
+          Chưa xong
+        </button>
+        <button type="button" data-filter="completed" class="filter-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition">
+          Đã xong
+        </button>
+      </div>
+
+      <button
+        id="test-sound-btn"
+        type="button"
+        title="Nghe thử chuông nhắc"
+        class="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 px-2.5 py-1.5 rounded-xl transition"
+      >
+        🔊 Thử chuông
+      </button>
+    </div>
+
+    <!-- Danh sách công việc -->
+    <ul id="todo-list" class="space-y-2.5">
+      <!-- Các item sẽ được render bằng JavaScript -->
+    </ul>
+
+    <!-- Trạng thái trống khi chưa có việc -->
+    <div id="empty-state" class="hidden text-center py-12 px-4 rounded-3xl bg-white/60 dark:bg-slate-900/50 border border-dashed border-slate-300 dark:border-slate-800">
+      <div class="text-3xl mb-2">🌙</div>
+      <p id="empty-title" class="text-sm font-medium text-slate-600 dark:text-slate-300">Chưa có việc nào cho tối nay</p>
+      <p id="empty-sub" class="text-xs text-slate-400 dark:text-slate-500 mt-1">Thêm vài đầu việc nhỏ bên trên để không bị quên nhé!</p>
+    </div>
+
+    <!-- Thanh công cụ dọn dẹp phía dưới -->
+    <footer id="footer-actions" class="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+      <button
+        id="clear-completed-btn"
+        type="button"
+        class="px-3.5 py-2.5 rounded-2xl text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-rose-300 dark:hover:border-rose-800 hover:text-rose-600 dark:hover:text-rose-400 transition active:scale-95"
+      >
+        Xóa các việc đã xong
+      </button>
+
+      <!-- Nút Làm mới cho tối mai với xác nhận 2 bước an toàn (không dùng confirm()) -->
+      <button
+        id="reset-tomorrow-btn"
+        type="button"
+        class="px-3.5 py-2.5 rounded-2xl text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-amber-300 dark:hover:border-amber-800 hover:text-amber-600 dark:hover:text-amber-400 transition active:scale-95"
+      >
+        Làm mới cho tối mai
+      </button>
+    </footer>
+
+  </div>
+
+  <!-- Modal nhập / sao chép Mã đồng bộ (Sync Code) giữa Laptop & Điện thoại -->
+  <div
+    id="sync-modal"
+    class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="sync-modal-title"
+  >
+    <div class="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-2xl space-y-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h2 id="sync-modal-title" class="text-lg font-bold text-slate-900 dark:text-white">
+            Đồng bộ Laptop & Điện thoại
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Nhập cùng một <strong>Mã đồng bộ</strong> trên cả 2 thiết bị để danh sách công việc tự động cập nhật theo thời gian thực.
+          </p>
+        </div>
+        <button
+          id="sync-modal-close"
+          type="button"
+          aria-label="Đóng hộp thoại đồng bộ"
+          class="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="space-y-2">
+        <label for="sync-code-input" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          Mã đồng bộ của bạn (4–24 ký tự)
+        </label>
+        <div class="flex items-center gap-2">
+          <input
+            id="sync-code-input"
+            type="text"
+            maxlength="24"
+            placeholder="VD: TOINAY-8899"
+            class="flex-1 px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-sm font-semibold uppercase text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <button
+            id="copy-sync-code-btn"
+            type="button"
+            title="Sao chép mã đồng bộ"
+            class="px-3.5 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 transition shrink-0 active:scale-95"
+          >
+            Sao chép
+          </button>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-2 pt-2">
+        <button
+          id="generate-sync-code-btn"
+          type="button"
+          class="px-3.5 py-2 rounded-2xl text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition"
+        >
+          🎲 Tạo mã ngẫu nhiên mới
+        </button>
+
+        <div class="flex items-center gap-2">
+          <button
+            id="sync-modal-cancel"
+            type="button"
+            class="px-4 py-2 rounded-2xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+          >
+            Đóng
+          </button>
+          <button
+            id="save-sync-code-btn"
+            type="button"
+            class="px-4 py-2 rounded-2xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition active:scale-95"
+          >
+            Kết nối mã này
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    /**
+     * ỨNG DỤNG TO-DO LIST TỐI NAY (ĐỒNG BỘ ĐÁM MÂY THỜI GIAN THỰC)
+     * Hỗ trợ đồng bộ tức thì giữa Laptop & Điện thoại thông qua Mã đồng bộ (Sync Code)
+     */
+
+    const DEFAULT_APP_TITLE = 'Việc cần làm tối nay';
+
+    // Danh sách 3 chế độ thông báo xoay vòng
+    const NOTIFY_MODES = ['ring_vibrate', 'vibrate', 'silent'];
+    const NOTIFY_MODE_META = {
+      ring_vibrate: {
+        label: 'Chuông + Rung',
+        tooltip: 'Đang bật: Chuông + Rung + Thông báo (Bấm để chuyển sang Chỉ rung)',
+        toast: 'Chế độ nhắc: Chuông + Rung 🔔📳',
+      },
+      vibrate: {
+        label: 'Chỉ rung',
+        tooltip: 'Đang bật: Chỉ rung + Thông báo im lặng (Bấm để chuyển sang Im lặng)',
+        toast: 'Chế độ nhắc: Chỉ rung (tắt chuông) 📳',
+      },
+      silent: {
+        label: 'Im lặng',
+        tooltip: 'Đang bật: Im lặng, không thông báo (Bấm để bật lại Chuông + Rung)',
+        toast: 'Chế độ nhắc: Im lặng hoàn toàn (tắt mọi thông báo) 🔕',
+      },
+    };
+
+    // State chính của ứng dụng (lưu trong bộ nhớ & đồng bộ trực tiếp lên Cloud)
+    let todos = [];
+    let currentFilter = 'all'; // 'all' | 'active' | 'completed'
+    let editingId = null; // ID của item đang mở form sửa inline
+    let notifyMode = 'ring_vibrate'; // 'ring_vibrate' | 'vibrate' | 'silent'
+    let isDarkTheme = true;
+    let resetConfirmPending = false;
+    let resetConfirmTimer = null;
+    let wasAllCompleted = false;
+
+    // Biến phục vụ Cloud Sync
+    let db = null;
+    let auth = null;
+    let currentUser = null;
+    let unsubscribeRoom = null;
+    let syncCode = '';
+    let isApplyingRemoteUpdate = false;
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+    // Tham chiếu các phần tử DOM
+    const htmlEl = document.documentElement;
+    const appTitleEl = document.getElementById('app-title');
+    const liveClockEl = document.getElementById('live-clock');
+    const currentDateEl = document.getElementById('current-date');
+    const syncCodeBtn = document.getElementById('sync-code-btn');
+    const syncStatusDot = document.getElementById('sync-status-dot');
+    const syncStatusText = document.getElementById('sync-status-text');
+    const syncCodeDisplay = document.getElementById('sync-code-display');
+    const syncModal = document.getElementById('sync-modal');
+    const syncModalClose = document.getElementById('sync-modal-close');
+    const syncModalCancel = document.getElementById('sync-modal-cancel');
+    const syncCodeInput = document.getElementById('sync-code-input');
+    const copySyncCodeBtn = document.getElementById('copy-sync-code-btn');
+    const generateSyncCodeBtn = document.getElementById('generate-sync-code-btn');
+    const saveSyncCodeBtn = document.getElementById('save-sync-code-btn');
+    const progressCardEl = document.getElementById('progress-card');
+    const celebrationSparklesEl = document.getElementById('celebration-sparkles');
+    const celebrateSmileyEl = document.getElementById('celebrate-smiley');
+    const progressLabelEl = document.getElementById('progress-label');
+    const celebrateSubtitleEl = document.getElementById('celebrate-subtitle');
+    const progressTextEl = document.getElementById('progress-text');
+    const progressBarEl = document.getElementById('progress-bar');
+    const todoForm = document.getElementById('todo-form');
+    const todoInput = document.getElementById('todo-input');
+    const todoDescInput = document.getElementById('todo-desc-input');
+    const todoTimeInput = document.getElementById('todo-time');
+    const todoListEl = document.getElementById('todo-list');
+    const emptyStateEl = document.getElementById('empty-state');
+    const emptyTitleEl = document.getElementById('empty-title');
+    const emptySubEl = document.getElementById('empty-sub');
+    const filterBtns = document.querySelectorAll('.filter-btn');
+    const presetTimeBtns = document.querySelectorAll('.preset-time-btn');
+    const clearCompletedBtn = document.getElementById('clear-completed-btn');
+    const resetTomorrowBtn = document.getElementById('reset-tomorrow-btn');
+    const themeBtn = document.getElementById('theme-btn');
+    const themeKnob = document.getElementById('theme-knob');
+    const sunIcon = document.getElementById('sun-icon');
+    const moonIcon = document.getElementById('moon-icon');
+    const notifyBtn = document.getElementById('notify-btn');
+    const notifyModeLabel = document.getElementById('notify-mode-label');
+    const notifyIconRingVibrate = document.getElementById('notify-icon-ring_vibrate');
+    const notifyIconVibrate = document.getElementById('notify-icon-vibrate');
+    const notifyIconSilent = document.getElementById('notify-icon-silent');
+    const testSoundBtn = document.getElementById('test-sound-btn');
+    const toastBanner = document.getElementById('toast-banner');
+    const toastMessage = document.getElementById('toast-message');
+    const toastClose = document.getElementById('toast-close');
+
+    // --- 0. KHỞI TẠO ĐỒNG BỘ ĐÁM MÂY (CLOUD SYNC) ---
+    function generateRandomCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = 'TOINAY-';
+      for (let i = 0; i < 4; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
+    function normalizeSyncCode(raw) {
+      return (raw || '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9_-]/g, '')
+        .slice(0, 24);
+    }
+
+    function getInitialSyncCode() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const fromUrl = normalizeSyncCode(params.get('sync') || params.get('code'));
+        if (fromUrl.length >= 4) return fromUrl;
+      } catch (e) {}
+      return generateRandomCode();
+    }
+
+    function updateSyncStatusUI(state, codeText) {
+      if (codeText) {
+        syncCodeDisplay.textContent = codeText;
+      }
+      syncStatusDot.classList.remove('bg-emerald-400', 'bg-amber-400', 'bg-rose-500', 'animate-pulse');
+      if (state === 'connected') {
+        syncStatusDot.classList.add('bg-emerald-400');
+        syncStatusText.textContent = 'Đã đồng bộ Cloud';
+      } else if (state === 'connecting') {
+        syncStatusDot.classList.add('bg-amber-400', 'animate-pulse');
+        syncStatusText.textContent = 'Đang đồng bộ...';
+      } else {
+        syncStatusDot.classList.add('bg-rose-500');
+        syncStatusText.textContent = 'Chế độ ngoại tuyến';
+      }
+    }
+
+    function updateUrlWithSyncCode(code) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('sync', code);
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {}
+    }
+
+    async function pushStateToCloud() {
+      if (!db || !currentUser || !syncCode || isApplyingRemoteUpdate) return;
+      try {
+        const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'tonight_todo_rooms', syncCode);
+        await setDoc(
+          roomRef,
+          {
+            appTitle: (appTitleEl.textContent || DEFAULT_APP_TITLE).trim(),
+            todos: todos,
+            updatedAt: Date.now(),
+            updatedBy: currentUser.uid,
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        console.error('Lỗi đẩy dữ liệu lên Cloud:', err);
+        updateSyncStatusUI('offline', syncCode);
+      }
+    }
+
+    function subscribeToSyncRoom(code) {
+      if (!db || !currentUser || !code) return;
+      if (unsubscribeRoom) {
+        unsubscribeRoom();
+        unsubscribeRoom = null;
+      }
+
+      syncCode = code;
+      updateUrlWithSyncCode(syncCode);
+      updateSyncStatusUI('connecting', syncCode);
+
+      const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'tonight_todo_rooms', syncCode);
+      unsubscribeRoom = onSnapshot(
+        roomRef,
+        (snapshot) => {
+          updateSyncStatusUI('connected', syncCode);
+          if (!snapshot.exists()) {
+            // Phòng mới chưa có trên Cloud: đẩy dữ liệu hiện tại lên để khởi tạo
+            pushStateToCloud();
+            return;
+          }
+
+          const data = snapshot.data();
+          isApplyingRemoteUpdate = true;
+          try {
+            if (typeof data.appTitle === 'string' && data.appTitle.trim()) {
+              const remoteTitle = data.appTitle.trim();
+              if (document.activeElement !== appTitleEl && appTitleEl.textContent.trim() !== remoteTitle) {
+                appTitleEl.textContent = remoteTitle;
+                document.title = remoteTitle;
+              }
+            }
+
+            if (Array.isArray(data.todos)) {
+              todos = data.todos.map((item) => ({
+                ...item,
+                title: item.title !== undefined ? item.title : (item.text || ''),
+                description: item.description !== undefined ? item.description : '',
+              }));
+              wasAllCompleted = todos.length > 0 && todos.every((t) => t.completed);
+              renderTodos();
+            }
+          } finally {
+            isApplyingRemoteUpdate = false;
+          }
+        },
+        (error) => {
+          console.error('Lỗi lắng nghe đồng bộ Cloud:', error);
+          updateSyncStatusUI('offline', syncCode);
+        }
+      );
+    }
+
+    async function initCloudSync() {
+      syncCode = getInitialSyncCode();
+      updateSyncStatusUI('connecting', syncCode);
+
+      try {
+        if (typeof __firebase_config === 'undefined') {
+          updateSyncStatusUI('offline', syncCode);
+          return;
+        }
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+
+        currentUser = auth.currentUser;
+        if (!currentUser) {
+          updateSyncStatusUI('offline', syncCode);
+          return;
+        }
+
+        subscribeToSyncRoom(syncCode);
+      } catch (err) {
+        console.error('Không thể khởi tạo Cloud Sync:', err);
+        updateSyncStatusUI('offline', syncCode);
+      }
+    }
+
+    // Xử lý mở/đóng & thao tác trong Modal Sync Code
+    function openSyncModal() {
+      syncCodeInput.value = syncCode;
+      syncModal.classList.remove('hidden');
+      syncModal.classList.add('flex');
+      setTimeout(() => syncCodeInput.focus(), 50);
+    }
+
+    function closeSyncModal() {
+      syncModal.classList.add('hidden');
+      syncModal.classList.remove('flex');
+    }
+
+    syncCodeBtn.addEventListener('click', openSyncModal);
+    syncModalClose.addEventListener('click', closeSyncModal);
+    syncModalCancel.addEventListener('click', closeSyncModal);
+    syncModal.addEventListener('click', (e) => {
+      if (e.target === syncModal) closeSyncModal();
+    });
+
+    generateSyncCodeBtn.addEventListener('click', () => {
+      syncCodeInput.value = generateRandomCode();
+    });
+
+    copySyncCodeBtn.addEventListener('click', () => {
+      const val = normalizeSyncCode(syncCodeInput.value) || syncCode;
+      syncCodeInput.value = val;
+      syncCodeInput.select();
+      try {
+        document.execCommand('copy');
+        showToast(`Đã sao chép mã "${val}" — dán mã này trên thiết bị còn lại!`);
+      } catch (e) {
+        showToast(`Mã đồng bộ của bạn là: ${val}`);
+      }
+    });
+
+    saveSyncCodeBtn.addEventListener('click', () => {
+      const nextCode = normalizeSyncCode(syncCodeInput.value);
+      if (nextCode.length < 4) {
+        showToast('Mã đồng bộ cần tối thiểu 4 ký tự (chữ hoặc số).');
+        syncCodeInput.focus();
+        return;
+      }
+      closeSyncModal();
+      if (currentUser && db) {
+        subscribeToSyncRoom(nextCode);
+        showToast(`Đang đồng bộ theo mã "${nextCode}"`);
+      } else {
+        syncCode = nextCode;
+        updateUrlWithSyncCode(syncCode);
+        updateSyncStatusUI('offline', syncCode);
+      }
+    });
+
+    syncCodeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        saveSyncCodeBtn.click();
+      } else if (e.key === 'Escape') {
+        closeSyncModal();
+      }
+    });
+
+    // --- 1. QUẢN LÝ GIAO DIỆN SÁNG / TỐI (APPLE PILL SLIDER) ---
+    function initTheme() {
+      isDarkTheme = true;
+      htmlEl.classList.add('dark');
+      updateThemeIcons();
+    }
+
+    function updateThemeIcons() {
+      const isDark = htmlEl.classList.contains('dark');
+      themeBtn.setAttribute('aria-checked', String(isDark));
+      if (isDark) {
+        themeKnob.classList.remove('translate-x-0');
+        themeKnob.classList.add('translate-x-7');
+        sunIcon.classList.add('hidden');
+        moonIcon.classList.remove('hidden');
+      } else {
+        themeKnob.classList.remove('translate-x-7');
+        themeKnob.classList.add('translate-x-0');
+        sunIcon.classList.remove('hidden');
+        moonIcon.classList.add('hidden');
+      }
+    }
+
+    themeBtn.addEventListener('click', () => {
+      htmlEl.classList.toggle('dark');
+      isDarkTheme = htmlEl.classList.contains('dark');
+      updateThemeIcons();
+    });
+
+    // --- 2. QUẢN LÝ TIÊU ĐỀ CHÍNH CHỈNH SỬA ĐƯỢC & BANNER THÔNG BÁO ---
+    let toastTimeout = null;
+
+    function showToast(msg, autoHide = true) {
+      if (!toastBanner || !toastMessage) return;
+      toastMessage.textContent = msg;
+      toastBanner.classList.remove('hidden');
+      if (toastTimeout) {
+        clearTimeout(toastTimeout);
+        toastTimeout = null;
+      }
+      if (autoHide) {
+        toastTimeout = setTimeout(() => {
+          toastBanner.classList.add('hidden');
+        }, 3600);
+      }
+    }
+
+    if (toastClose && toastBanner) {
+      toastClose.addEventListener('click', () => {
+        toastBanner.classList.add('hidden');
+        if (toastTimeout) {
+          clearTimeout(toastTimeout);
+          toastTimeout = null;
+        }
+      });
+    }
+
+    function initAppTitle() {
+      if (!appTitleEl) return;
+      let previousTitle = DEFAULT_APP_TITLE;
+      appTitleEl.textContent = DEFAULT_APP_TITLE;
+
+      appTitleEl.addEventListener('focus', () => {
+        previousTitle = (appTitleEl.textContent || '').trim() || DEFAULT_APP_TITLE;
+      });
+
+      const commitAppTitle = () => {
+        const cleaned = (appTitleEl.textContent || '').replace(/\s+/g, ' ').trim();
+        const finalTitle = cleaned || DEFAULT_APP_TITLE;
+        appTitleEl.textContent = finalTitle;
+        document.title = finalTitle;
+        if (finalTitle !== previousTitle) {
+          pushStateToCloud();
+        }
+      };
+
+      appTitleEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          appTitleEl.blur();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          appTitleEl.textContent = previousTitle;
+          appTitleEl.blur();
+        }
+      });
+
+      appTitleEl.addEventListener('blur', commitAppTitle);
+      document.title = appTitleEl.textContent.trim() || DEFAULT_APP_TITLE;
+    }
+
+    // --- 3. ÂM THANH CHUÔNG NHẸ (TONE.JS), RUNG & CHẾ ĐỘ THÔNG BÁO 3 TRẠNG THÁI ---
+    function triggerDeviceVibration(pattern = [200, 100, 200]) {
+      try {
+        if ('vibrate' in navigator) {
+          navigator.vibrate(pattern);
+        }
+      } catch (err) {
+        console.warn('Thiết bị không hỗ trợ rung:', err);
+      }
+    }
+
+    async function playGentleChime() {
+      try {
+        if (typeof Tone !== 'undefined') {
+          await Tone.start();
+          const synth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: 'sine' },
+            envelope: { attack: 0.02, decay: 0.3, sustain: 0.1, release: 1.2 },
+          }).toDestination();
+          synth.volume.value = -8;
+          const now = Tone.now();
+          synth.triggerAttackRelease('E5', '8n', now);
+          synth.triggerAttackRelease('G#5', '8n', now + 0.18);
+          synth.triggerAttackRelease('B5', '4n', now + 0.36);
+        }
+      } catch (err) {
+        console.warn('Không phát được âm thanh:', err);
+      }
+    }
+
+    // Âm thanh ăn mừng nhẹ nhàng, tinh tế (neutral chime) khi hoàn thành 100% công việc
+    async function playCelebrationChime() {
+      if (notifyMode === 'silent') return;
+
+      if (notifyMode === 'vibrate') {
+        triggerDeviceVibration([80, 60, 140]);
+        return;
+      }
+
+      try {
+        if (typeof Tone !== 'undefined') {
+          await Tone.start();
+          const synth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: 'triangle' },
+            envelope: { attack: 0.015, decay: 0.25, sustain: 0.08, release: 0.9 },
+          }).toDestination();
+          synth.volume.value = -10;
+          const now = Tone.now();
+          // Hợp âm rải Cmaj9 ấm áp, nhẹ tai
+          synth.triggerAttackRelease('C5', '16n', now);
+          synth.triggerAttackRelease('E5', '16n', now + 0.09);
+          synth.triggerAttackRelease('G5', '16n', now + 0.18);
+          synth.triggerAttackRelease('B5', '8n', now + 0.27);
+          synth.triggerAttackRelease('D6', '4n', now + 0.38);
+        }
+        triggerDeviceVibration([60, 50, 110]);
+      } catch (err) {
+        console.warn('Không phát được âm thanh ăn mừng:', err);
+      }
+    }
+
+    function initNotifyMode() {
+      notifyMode = 'ring_vibrate';
+      updateNotificationUI();
+    }
+
+    function updateNotificationUI() {
+      const meta = NOTIFY_MODE_META[notifyMode];
+      notifyModeLabel.textContent = meta.label;
+      notifyBtn.title = meta.tooltip;
+
+      // Ẩn toàn bộ icon trước khi bật icon tương ứng
+      notifyIconRingVibrate.classList.add('hidden');
+      notifyIconRingVibrate.classList.remove('flex');
+      notifyIconVibrate.classList.add('hidden');
+      notifyIconVibrate.classList.remove('flex');
+      notifyIconSilent.classList.add('hidden');
+      notifyIconSilent.classList.remove('flex');
+
+      // Cập nhật màu viền & icon theo trạng thái
+      notifyBtn.classList.remove(
+        'border-indigo-300', 'dark:border-indigo-700/80',
+        'border-amber-300', 'dark:border-amber-700/80',
+        'opacity-75'
+      );
+
+      if (notifyMode === 'ring_vibrate') {
+        notifyIconRingVibrate.classList.remove('hidden');
+        notifyIconRingVibrate.classList.add('flex');
+        notifyBtn.classList.add('border-indigo-300', 'dark:border-indigo-700/80');
+      } else if (notifyMode === 'vibrate') {
+        notifyIconVibrate.classList.remove('hidden');
+        notifyIconVibrate.classList.add('flex');
+        notifyBtn.classList.add('border-amber-300', 'dark:border-amber-700/80');
+      } else {
+        notifyIconSilent.classList.remove('hidden');
+        notifyIconSilent.classList.add('flex');
+        notifyBtn.classList.add('opacity-75');
+      }
+    }
+
+    notifyBtn.addEventListener('click', async () => {
+      // Xoay vòng 3 trạng thái: ring_vibrate -> vibrate -> silent -> ring_vibrate
+      const nextIndex = (NOTIFY_MODES.indexOf(notifyMode) + 1) % NOTIFY_MODES.length;
+      notifyMode = NOTIFY_MODES[nextIndex];
+      updateNotificationUI();
+
+      // Hiệu ứng rung nhẹ phản hồi trên nút khi chuyển sang trạng thái có rung
+      if (notifyMode === 'ring_vibrate' || notifyMode === 'vibrate') {
+        notifyBtn.classList.remove('animate-subtle-vibrate');
+        void notifyBtn.offsetWidth; // Force reflow để chạy lại animation
+        notifyBtn.classList.add('animate-subtle-vibrate');
+      }
+
+      if (notifyMode === 'ring_vibrate') {
+        await playGentleChime();
+        triggerDeviceVibration([120, 60, 120]);
+        if ('Notification' in window && Notification.permission === 'default') {
+          try {
+            await Notification.requestPermission();
+          } catch (e) {}
+        }
+      } else if (notifyMode === 'vibrate') {
+        triggerDeviceVibration([200, 80, 200]);
+        if ('Notification' in window && Notification.permission === 'default') {
+          try {
+            await Notification.requestPermission();
+          } catch (e) {}
+        }
+      }
+    });
+
+    testSoundBtn.addEventListener('click', async () => {
+      if (notifyMode === 'silent') {
+        showToast('Đang ở chế độ Im lặng (không chuông, không rung, không thông báo).');
+        return;
+      }
+      if (notifyMode === 'ring_vibrate') {
+        await playGentleChime();
+        triggerDeviceVibration([200, 100, 200]);
+        showToast('Thử nhắc: Đã kêu chuông + rung!');
+      } else if (notifyMode === 'vibrate') {
+        triggerDeviceVibration([250, 100, 250]);
+        showToast('Thử nhắc: Đã rung (chế độ Chỉ rung)!');
+      }
+    });
+
+    // --- 4. ĐỒNG HỒ THỜI GIAN THỰC & KIỂM TRA NHẮC HẸN ---
+    function updateClockAndCheckReminders() {
+      const now = new Date();
+
+      // Định dạng ngày tiếng Việt
+      const dateOptions = { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' };
+      currentDateEl.textContent = now.toLocaleDateString('vi-VN', dateOptions);
+
+      // Định dạng giờ HH:MM:SS
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      liveClockEl.textContent = `${hours}:${minutes}:${seconds}`;
+
+      // Kiểm tra các công việc có đặt giờ khớp với HH:MM hiện tại
+      const currentHHMM = `${hours}:${minutes}`;
+      let triggeredAny = false;
+
+      todos.forEach((item) => {
+        if (!item.completed && item.time === currentHHMM && !item.reminded) {
+          item.reminded = true;
+          triggeredAny = true;
+
+          // Nếu đang ở chế độ Im lặng (silent): không chuông, không rung, không thông báo
+          if (notifyMode === 'silent') {
+            return;
+          }
+
+          const titleDisplay = item.title || item.text || '';
+
+          if (notifyMode === 'ring_vibrate') {
+            playGentleChime();
+            triggerDeviceVibration([220, 100, 220, 100, 220]);
+            showToast(`Đến giờ (${item.time}): ${titleDisplay}`, false);
+          } else if (notifyMode === 'vibrate') {
+            triggerDeviceVibration([280, 100, 280]);
+            showToast(`📳 Đến giờ (${item.time}): ${titleDisplay}`, false);
+          }
+
+          // Gửi Notification hệ thống nếu đã cấp quyền (silent: true khi ở chế độ chỉ rung)
+          if ('Notification' in window && Notification.permission === 'granted') {
+            try {
+              new Notification(`⏰ ${appTitleEl.textContent.trim()}`, {
+                body: `${item.time} - ${titleDisplay}${item.description ? '\n' + item.description : ''}`,
+                silent: notifyMode === 'vibrate',
+              });
+            } catch (e) {}
+          }
+        }
+      });
+
+      if (triggeredAny) {
+        saveTodos();
+        renderTodos();
+      }
+    }
+
+    // --- 5. KHỞI TẠO & LƯU TRỮ DỮ LIỆU ĐỒNG BỘ ĐÁM MÂY ---
+    function loadInitialTodos() {
+      todos = [
+        {
+          id: Date.now() - 2000,
+          title: 'Chốt ý tưởng & viết mở đầu video YouTube',
+          description: 'Tập trung 15 giây đầu gây tò mò, chia nhỏ các cảnh 3 giây.',
+          time: '20:30',
+          completed: false,
+          reminded: false,
+        },
+        {
+          id: Date.now() - 1000,
+          title: 'Tạo voice ElevenLabs & ảnh Google Flow',
+          description: 'Xuất file âm thanh và kiểm tra đồng bộ nhịp chuyển cảnh.',
+          time: '21:30',
+          completed: false,
+          reminded: false,
+        },
+      ];
+    }
+
+    function saveTodos() {
+      pushStateToCloud();
+    }
+
+    // --- 6. THAO TÁC CRUD CÔNG VIỆC ---
+    function addTodo(title, description, time) {
+      const cleanTitle = title.trim();
+      const cleanDesc = (description || '').trim();
+      if (!cleanTitle) return;
+
+      const newItem = {
+        id: Date.now(),
+        title: cleanTitle,
+        description: cleanDesc,
+        time: time || '',
+        completed: false,
+        reminded: false,
+      };
+
+      todos.unshift(newItem);
+      saveTodos();
+      renderTodos();
+    }
+
+    function updateTodoDetails(id, newTitle, newDescription) {
+      const cleanTitle = newTitle.trim();
+      const cleanDesc = (newDescription || '').trim();
+      if (!cleanTitle) {
+        showToast('Tiêu đề công việc không được để trống.');
+        return false;
+      }
+      todos = todos.map((item) =>
+        item.id === id ? { ...item, title: cleanTitle, description: cleanDesc } : item
+      );
+      saveTodos();
+      return true;
+    }
+
+    function toggleTodo(id) {
+      todos = todos.map((item) =>
+        item.id === id ? { ...item, completed: !item.completed } : item
+      );
+      saveTodos();
+      renderTodos();
+    }
+
+    function deleteTodo(id) {
+      if (editingId === id) editingId = null;
+      todos = todos.filter((item) => item.id !== id);
+      saveTodos();
+      renderTodos();
+    }
+
+    // Xử lý submit form thêm mới (hỗ trợ Enter ở ô Title và Ctrl+Enter ở ô Description)
+    todoForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!todoInput.value.trim()) {
+        todoInput.focus();
+        return;
+      }
+      addTodo(todoInput.value, todoDescInput.value, todoTimeInput.value);
+      todoInput.value = '';
+      todoDescInput.value = '';
+      todoTimeInput.value = '';
+      clearPresetHighlight();
+      todoInput.focus();
+    });
+
+    todoDescInput.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        todoForm.requestSubmit();
+      }
+    });
+
+    // Chọn nhanh giờ buổi tối (19:30, 20:30, 21:30, 22:30)
+    function clearPresetHighlight() {
+      presetTimeBtns.forEach((btn) => {
+        btn.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-100', 'dark:bg-indigo-950', 'text-indigo-700', 'dark:text-indigo-300');
+      });
+    }
+
+    presetTimeBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const val = btn.getAttribute('data-preset');
+        if (todoTimeInput.value === val) {
+          // Bấm lại lần nữa để bỏ chọn giờ
+          todoTimeInput.value = '';
+          clearPresetHighlight();
+        } else {
+          todoTimeInput.value = val;
+          clearPresetHighlight();
+          btn.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-100', 'dark:bg-indigo-950', 'text-indigo-700', 'dark:text-indigo-300');
+        }
+      });
+    });
+
+    todoTimeInput.addEventListener('input', () => {
+      clearPresetHighlight();
+    });
+
+    // Bộ lọc Tất cả / Chưa xong / Đã xong
+    filterBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        currentFilter = btn.getAttribute('data-filter');
+        filterBtns.forEach((b) => {
+          b.classList.remove('bg-white', 'dark:bg-slate-800', 'text-slate-900', 'dark:text-white', 'shadow-sm');
+          b.classList.add('text-slate-500', 'dark:text-slate-400');
+        });
+        btn.classList.add('bg-white', 'dark:bg-slate-800', 'text-slate-900', 'dark:text-white', 'shadow-sm');
+        btn.classList.remove('text-slate-500', 'dark:text-slate-400');
+        renderTodos();
+      });
+    });
+
+    // Xóa các việc đã xong
+    clearCompletedBtn.addEventListener('click', () => {
+      const completedCount = todos.filter((t) => t.completed).length;
+      if (completedCount === 0) {
+        showToast('Chưa có việc nào hoàn thành để xóa.');
+        return;
+      }
+      todos = todos.filter((t) => !t.completed);
+      saveTodos();
+      renderTodos();
+      showToast(`Đã dọn sạch ${completedCount} việc đã xong.`);
+    });
+
+    // Làm mới cho tối mai (xác nhận 2 chạm ngay trên nút, không dùng confirm())
+    resetTomorrowBtn.addEventListener('click', () => {
+      if (todos.length === 0) {
+        showToast('Danh sách hiện đang trống sẵn rồi.');
+        return;
+      }
+      if (!resetConfirmPending) {
+        resetConfirmPending = true;
+        resetTomorrowBtn.textContent = 'Bấm lần nữa để xóa hết';
+        resetTomorrowBtn.classList.add('bg-rose-600', 'text-white', 'border-rose-600');
+        resetConfirmTimer = setTimeout(() => {
+          resetConfirmPending = false;
+          resetTomorrowBtn.textContent = 'Làm mới cho tối mai';
+          resetTomorrowBtn.classList.remove('bg-rose-600', 'text-white', 'border-rose-600');
+        }, 3500);
+      } else {
+        clearTimeout(resetConfirmTimer);
+        resetConfirmPending = false;
+        resetTomorrowBtn.textContent = 'Làm mới cho tối mai';
+        resetTomorrowBtn.classList.remove('bg-rose-600', 'text-white', 'border-rose-600');
+        todos = [];
+        saveTodos();
+        renderTodos();
+        showToast('Đã làm mới danh sách cho tối mai!');
+      }
+    });
+
+    // --- 7. RENDER GIAO DIỆN DANH SÁCH & TIẾN ĐỘ ---
+    function escapeHTML(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function updateProgressUI(done, total) {
+      const percent = total === 0 ? 0 : Math.round((done / total) * 100);
+      const isAllCompleted = total > 0 && done === total;
+
+      // Phát âm thanh ăn mừng nhẹ khi vừa chạm mốc 100% (chỉ phát khi chuyển từ chưa xong sang xong hết)
+      if (isAllCompleted && !wasAllCompleted) {
+        playCelebrationChime();
+      }
+      wasAllCompleted = isAllCompleted;
+
+      progressTextEl.textContent = isAllCompleted
+        ? `100% (${done}/${total})`
+        : `Đã xong ${done}/${total} việc`;
+      progressBarEl.style.width = `${percent}%`;
+
+      if (isAllCompleted) {
+        // Trạng thái ăn mừng khi hoàn thành 100% công việc
+        progressCardEl.classList.remove(
+          'bg-white', 'dark:bg-slate-900',
+          'border-slate-200/80', 'dark:border-slate-800', 'shadow-sm'
+        );
+        progressCardEl.classList.add(
+          'bg-gradient-to-br', 'from-emerald-50', 'via-teal-50/80', 'to-amber-50/70',
+          'dark:from-emerald-950/60', 'dark:via-slate-900', 'dark:to-amber-950/30',
+          'border-emerald-300/90', 'dark:border-emerald-700/70',
+          'shadow-md', 'shadow-emerald-500/10'
+        );
+
+        celebrationSparklesEl.classList.remove('hidden');
+        celebrateSmileyEl.classList.remove('hidden');
+        celebrateSmileyEl.classList.add('inline-flex');
+        celebrateSubtitleEl.classList.remove('hidden');
+        progressLabelEl.textContent = 'Hoàn thành xuất sắc!';
+        progressLabelEl.classList.remove('text-slate-700', 'dark:text-slate-200');
+        progressLabelEl.classList.add('text-emerald-800', 'dark:text-emerald-200');
+
+        progressTextEl.classList.remove(
+          'text-indigo-600', 'dark:text-indigo-400',
+          'bg-indigo-50/80', 'dark:bg-indigo-950/70'
+        );
+        progressTextEl.classList.add(
+          'text-emerald-700', 'dark:text-emerald-300',
+          'bg-emerald-100/90', 'dark:bg-emerald-900/70'
+        );
+
+        progressBarEl.classList.remove('bg-indigo-500');
+        progressBarEl.classList.add('bg-gradient-to-r', 'from-emerald-500', 'via-teal-400', 'to-amber-400');
+      } else {
+        // Trạng thái tiến độ bình thường
+        progressCardEl.classList.add(
+          'bg-white', 'dark:bg-slate-900',
+          'border-slate-200/80', 'dark:border-slate-800', 'shadow-sm'
+        );
+        progressCardEl.classList.remove(
+          'bg-gradient-to-br', 'from-emerald-50', 'via-teal-50/80', 'to-amber-50/70',
+          'dark:from-emerald-950/60', 'dark:via-slate-900', 'dark:to-amber-950/30',
+          'border-emerald-300/90', 'dark:border-emerald-700/70',
+          'shadow-md', 'shadow-emerald-500/10'
+        );
+
+        celebrationSparklesEl.classList.add('hidden');
+        celebrateSmileyEl.classList.add('hidden');
+        celebrateSmileyEl.classList.remove('inline-flex');
+        celebrateSubtitleEl.classList.add('hidden');
+        progressLabelEl.textContent = 'Tiến độ tối nay';
+        progressLabelEl.classList.add('text-slate-700', 'dark:text-slate-200');
+        progressLabelEl.classList.remove('text-emerald-800', 'dark:text-emerald-200');
+
+        progressTextEl.classList.add(
+          'text-indigo-600', 'dark:text-indigo-400',
+          'bg-indigo-50/80', 'dark:bg-indigo-950/70'
+        );
+        progressTextEl.classList.remove(
+          'text-emerald-700', 'dark:text-emerald-300',
+          'bg-emerald-100/90', 'dark:bg-emerald-900/70'
+        );
+
+        progressBarEl.classList.add('bg-indigo-500');
+        progressBarEl.classList.remove('bg-gradient-to-r', 'from-emerald-500', 'via-teal-400', 'to-amber-400');
+      }
+    }
+
+    function renderTodos() {
+      // Cập nhật thanh tiến độ & trạng thái ăn mừng
+      const total = todos.length;
+      const done = todos.filter((t) => t.completed).length;
+      updateProgressUI(done, total);
+
+      // Lọc danh sách hiển thị
+      const filtered = todos.filter((item) => {
+        if (currentFilter === 'active') return !item.completed;
+        if (currentFilter === 'completed') return item.completed;
+        return true;
+      });
+
+      todoListEl.innerHTML = '';
+
+      if (filtered.length === 0) {
+        emptyStateEl.classList.remove('hidden');
+        if (currentFilter === 'completed') {
+          emptyTitleEl.textContent = 'Chưa có việc nào hoàn thành';
+          emptySubEl.textContent = 'Tick vào ô tròn bên trái khi bạn làm xong nhé.';
+        } else if (currentFilter === 'active' && total > 0) {
+          emptyTitleEl.textContent = 'Tuyệt vời! Bạn đã xong hết việc tối nay 🎉';
+          emptySubEl.textContent = 'Nghỉ ngơi sớm hoặc bấm "Làm mới cho tối mai" nhé.';
+        } else {
+          emptyTitleEl.textContent = 'Chưa có việc nào cho tối nay';
+          emptySubEl.textContent = 'Thêm vài đầu việc nhỏ bên trên để không bị quên nhé!';
+        }
+        return;
+      }
+
+      emptyStateEl.classList.add('hidden');
+
+      filtered.forEach((item) => {
+        const isEditing = editingId === item.id;
+        const li = document.createElement('li');
+        li.className = `group flex items-start justify-between gap-3 p-3.5 sm:p-4 rounded-2xl border transition-all duration-300 ${
+          isEditing
+            ? 'bg-white dark:bg-slate-900 border-indigo-500 ring-2 ring-indigo-500/20 shadow-md'
+            : item.completed
+            ? 'bg-emerald-50/40 dark:bg-slate-900/50 border-emerald-200/70 dark:border-emerald-900/40 opacity-80'
+            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm hover:border-slate-300 dark:hover:border-slate-700'
+        }`;
+
+        // Nút tick hoàn thành với hiệu ứng chuyển xanh ngọc khi hoàn thành
+        const checkBtn = document.createElement('button');
+        checkBtn.type = 'button';
+        checkBtn.title = item.completed ? 'Đánh dấu chưa xong' : 'Đánh dấu đã xong';
+        checkBtn.className = 'mt-0.5 p-1 -m-1 rounded-full shrink-0 focus:outline-none active:scale-90 transition';
+        checkBtn.innerHTML = item.completed
+          ? `<span class="w-6 h-6 rounded-full bg-emerald-500 border-2 border-emerald-500 shadow-sm shadow-emerald-500/30 flex items-center justify-center text-white transition-all duration-300">
+               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+               </svg>
+             </span>`
+          : `<span class="w-6 h-6 rounded-full border-2 border-slate-300 dark:border-slate-600 hover:border-emerald-500 flex items-center justify-center transition-colors duration-200"></span>`;
+        checkBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleTodo(item.id);
+        });
+
+        li.appendChild(checkBtn);
+
+        if (isEditing) {
+          // Chế độ chỉnh sửa cả Title & Description ngay trên card
+          const editWrapper = document.createElement('div');
+          editWrapper.className = 'flex-1 min-w-0 space-y-2';
+
+          const titleEditInput = document.createElement('input');
+          titleEditInput.type = 'text';
+          titleEditInput.value = item.title;
+          titleEditInput.placeholder = 'Tiêu đề công việc...';
+          titleEditInput.className = 'w-full px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-sm sm:text-base font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500';
+
+          const descEditInput = document.createElement('textarea');
+          descEditInput.rows = 2;
+          descEditInput.value = item.description || '';
+          descEditInput.placeholder = 'Mô tả / Ghi chú chi tiết (tùy chọn)...';
+          descEditInput.className = 'w-full px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-xs sm:text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none';
+
+          const actionRow = document.createElement('div');
+          actionRow.className = 'flex items-center justify-end gap-2 pt-0.5';
+
+          const cancelEditBtn = document.createElement('button');
+          cancelEditBtn.type = 'button';
+          cancelEditBtn.textContent = 'Hủy';
+          cancelEditBtn.className = 'px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition';
+          cancelEditBtn.addEventListener('click', () => {
+            editingId = null;
+            renderTodos();
+          });
+
+          const saveEditBtn = document.createElement('button');
+          saveEditBtn.type = 'button';
+          saveEditBtn.textContent = 'Lưu thay đổi';
+          saveEditBtn.className = 'px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition';
+
+          const commitEdit = () => {
+            if (updateTodoDetails(item.id, titleEditInput.value, descEditInput.value)) {
+              editingId = null;
+              renderTodos();
+            } else {
+              titleEditInput.focus();
+            }
+          };
+
+          saveEditBtn.addEventListener('click', commitEdit);
+          titleEditInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitEdit();
+            } else if (e.key === 'Escape') {
+              editingId = null;
+              renderTodos();
+            }
+          });
+          descEditInput.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+              e.preventDefault();
+              commitEdit();
+            } else if (e.key === 'Escape') {
+              editingId = null;
+              renderTodos();
+            }
+          });
+
+          actionRow.appendChild(cancelEditBtn);
+          actionRow.appendChild(saveEditBtn);
+          editWrapper.appendChild(titleEditInput);
+          editWrapper.appendChild(descEditInput);
+          editWrapper.appendChild(actionRow);
+          li.appendChild(editWrapper);
+
+          // Tự động focus vào ô tiêu đề khi mở sửa
+          setTimeout(() => titleEditInput.focus(), 0);
+        } else {
+          // Chế độ hiển thị bình thường: bấm vào nội dung để mở form sửa
+          const contentDiv = document.createElement('div');
+          contentDiv.title = 'Bấm để chỉnh sửa tiêu đề & mô tả';
+          contentDiv.className = 'flex-1 min-w-0 cursor-pointer rounded-xl -my-1 py-1 px-1.5 -mx-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition';
+          contentDiv.addEventListener('click', () => {
+            editingId = item.id;
+            renderTodos();
+          });
+
+          const descHtml = item.description
+            ? `<p class="text-xs sm:text-sm mt-1 whitespace-pre-line break-words leading-relaxed ${
+                item.completed
+                  ? 'line-through text-slate-400/80 dark:text-slate-600'
+                  : 'text-slate-500 dark:text-slate-400'
+              }">${escapeHTML(item.description)}</p>`
+            : '';
+
+          const timeBadgeHtml = item.time
+            ? `<span class="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-lg text-xs font-medium ${
+                item.completed
+                  ? 'bg-emerald-100/70 dark:bg-emerald-950/50 text-emerald-700/80 dark:text-emerald-400/80'
+                  : 'bg-indigo-50 dark:bg-indigo-950/90 text-indigo-600 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/60'
+              }">
+                 ${item.completed ? '✓' : '⏰'} ${escapeHTML(item.time)}
+               </span>`
+            : '';
+
+          contentDiv.innerHTML = `
+            <p class="text-sm sm:text-base font-semibold break-words transition-all duration-200 ${
+              item.completed
+                ? 'line-through decoration-emerald-500/60 text-slate-400 dark:text-slate-500'
+                : 'text-slate-900 dark:text-slate-100'
+            }">${escapeHTML(item.title)}</p>
+            ${descHtml}
+            ${timeBadgeHtml}
+          `;
+
+          // Cụm nút Sửa & Xóa bên phải
+          const actionsDiv = document.createElement('div');
+          actionsDiv.className = 'flex items-center gap-1 shrink-0';
+
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.title = 'Sửa công việc';
+          editBtn.className = 'p-2 rounded-xl text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition active:scale-90';
+          editBtn.innerHTML = `
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          `;
+          editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            editingId = item.id;
+            renderTodos();
+          });
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.type = 'button';
+          deleteBtn.title = 'Xóa công việc';
+          deleteBtn.className = 'p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition active:scale-90';
+          deleteBtn.innerHTML = `
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          `;
+          deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteTodo(item.id);
+          });
+
+          actionsDiv.appendChild(editBtn);
+          actionsDiv.appendChild(deleteBtn);
+          li.appendChild(contentDiv);
+          li.appendChild(actionsDiv);
+        }
+
+        todoListEl.appendChild(li);
+      });
+    }
+
+    // --- KHỞI CHẠY ỨNG DỤNG ---
+    window.addEventListener('DOMContentLoaded', () => {
+      initTheme();
+      initAppTitle();
+      initNotifyMode();
+      loadInitialTodos();
+      wasAllCompleted = todos.length > 0 && todos.every((t) => t.completed);
+      renderTodos();
+      updateClockAndCheckReminders();
+      setInterval(updateClockAndCheckReminders, 1000);
+      initCloudSync();
+    });
+  </script>
+</body>
+</html>
